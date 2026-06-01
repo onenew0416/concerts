@@ -256,13 +256,12 @@
 
     <div id="toastContainer" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
 
-    <script type="module">
+	<script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-        // ⚠️ Firebase 金鑰配置資訊
+        // Firebase 金鑰配置資訊
         const firebaseConfig = {
               apiKey: "AIzaSyBuXhWGyzb8GeQhAxysr4mN2tE5ckewAxw",
               authDomain: "concerts-6ced3.firebaseapp.com",
@@ -273,26 +272,20 @@
               measurementId: "G-V5VMQWBKCJ"
         };
         
-        // 🚀 【修正】正確的初始化順序：先 initializeApp，才能 getFirestore / getStorage / getAuth
+        // 初始化 Firebase 与 Firestore
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const storage = getStorage(app);
         const auth = getAuth(app);
 
-        // 執行匿名登入，解鎖正式模式安全規則
-        signInAnonymously(auth)
-          .then(() => {
-              console.log("已自動匿名登入，獲得雲端寫入權限！");
-          })
-          .catch((error) => {
-              console.error("登入失敗：", error);
-          });
+        // 執行匿名登入
+        signInAnonymously(auth).catch((error) => console.error("登入失敗：", error));
 
         // 全域變數
         let concerts = [];
         let deleteTargetId = null;
+        let currentBase64Image = ""; // 用來暫存壓縮後的 Base64 字串
 
-        // 監聽 Firebase 雲端資料庫即時變動
+        // 監聽 Firestore 即時變動
         onSnapshot(collection(db, "concerts"), (snapshot) => {
             concerts = [];
             snapshot.forEach((doc) => {
@@ -300,7 +293,7 @@
             });
             filterAndRender();
         }, (error) => {
-            showToast('資料同步失敗，請檢查 Firebase 配置與規則！', 'error');
+            showToast('資料同步失敗，請檢查 Firestore 規則！', 'error');
         });
 
         // 16:9 預設幾何海報生成
@@ -315,20 +308,85 @@
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
         }
 
-        // 圖片上傳前的即時本機預覽
-        window.previewImage = function(event) {
+        // 🚀 【新增】核心智慧壓縮功能 (維持比例、自動控制在安全容量內)
+        function compressImage(file, maxWidth = 1000, quality = 0.7) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = function (e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function () {
+                        let width = img.width;
+                        let height = img.height;
+
+                        // 🔍 如果圖片寬度大於設定的最大寬度，才進行等比例縮放
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width); // 數學公式：依比例計算新高度
+                            width = maxWidth;
+                        }
+
+                        // 建立記憶體中的虛擬畫布
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // 壓縮輸出：強迫轉成 jpeg 格式，並指定畫質品質 (0.0 到 1.0)
+                        // jpeg 格式的壓縮率最高，0.7~0.8 即可讓肉眼看不出差異但檔案極小
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                        resolve(compressedBase64);
+                    };
+                    img.onerror = reject;
+                };
+                reader.onerror = reject;
+            });
+        }
+
+        // 🚀 【修改】選擇圖片事件：加入非同步 (async) 智慧壓縮
+        window.previewImage = async function(event) {
             const file = event.target.files[0];
             const preview = document.getElementById('imagePreview');
             const placeholder = document.getElementById('imagePlaceholder');
             
             if (file) {
-                preview.src = URL.createObjectURL(file);
-                preview.classList.remove('hidden');
-                placeholder.classList.add('hidden');
+                // 如果檔案大於 200KB，就啟動壓縮機制（小檔案就直接處理省時間）
+                if (file.size > 200 * 1024) {
+                    console.log(`原始檔案過大 (${(file.size/1024).toFixed(1)} KB)，啟動自動等比例壓縮...`);
+                    try {
+                        // 參數設定：最大寬度 1000px，品質 0.7 
+                        currentBase64Image = await compressImage(file, 1000, 0.7);
+                    } catch (error) {
+                        console.error("壓縮失敗，使用原圖：", error);
+                        // 備援方案：如果 Canvas 壓縮失敗，就用普通的 FileReader 讀原圖
+                        const reader = new FileReader();
+                        reader.onload = (e) => { currentBase64Image = e.target.result; preview.src = currentBase64Image; };
+                        reader.readAsDataURL(file);
+                        return;
+                    }
+                } else {
+                    // 檔案本來就很小，直接轉 Base64
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        currentBase64Image = e.target.result;
+                        preview.src = currentBase64Image;
+                    }
+                    reader.readAsDataURL(file);
+                }
+
+                // 更新前端 UI 預覽畫面
+                setTimeout(() => {
+                    preview.src = currentBase64Image;
+                    preview.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    console.log("圖片處理完成！");
+                }, 50);
             }
         }
 
-        // 新增與更新處理 (串接 Firebase)
+        // 新增與更新處理
         window.handleFormSubmit = async function(event) {
             event.preventDefault();
             
@@ -339,38 +397,27 @@
             const price = parseInt(document.getElementById('price').value) || 0;
             const artist = document.getElementById('artist').value.trim();
             const venue = document.getElementById('venue').value.trim();
-            const imageFile = document.getElementById('imageInput').files[0];
             const existingImage = document.getElementById('existingImage').value;
 
-            // 進入讀取狀態
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> 雲端處理中...`;
 
             try {
-                let finalImageUrl = existingImage;
-
-                // 如果有選擇新檔案，上傳至 Firebase Storage
-                if (imageFile) {
-                    const storageRef = ref(storage, `posters/${Date.now()}_${imageFile.name}`);
-                    const uploadSnapshot = await uploadBytes(storageRef, imageFile);
-                    finalImageUrl = await getDownloadURL(uploadSnapshot.ref);
-                }
+                let finalImageUrl = currentBase64Image ? currentBase64Image : existingImage;
 
                 const payload = { name, date, price, artist, venue, image: finalImageUrl };
 
                 if (editId) {
-                    // 更新 Firestore
                     await updateDoc(doc(db, "concerts", editId), payload);
                     showToast('已成功更新雲端紀錄', 'success');
                 } else {
-                    // 寫入 Firestore
                     await addDoc(collection(db, "concerts"), payload);
                     showToast('已成功儲存至雲端資料庫', 'success');
                 }
                 resetForm();
             } catch (error) {
                 console.error(error);
-                showToast('處理失敗，請檢查規則設定！', 'error');
+                showToast('處理失敗，請檢查 Firestore 規則設定！', 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = `儲存紀錄`;
@@ -391,6 +438,7 @@
             document.getElementById('artist').value = concert.artist;
             document.getElementById('venue').value = concert.venue;
             document.getElementById('existingImage').value = concert.image;
+            currentBase64Image = ""; 
 
             const preview = document.getElementById('imagePreview');
             const placeholder = document.getElementById('imagePlaceholder');
@@ -429,16 +477,8 @@
 
         document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
             if (deleteTargetId) {
-                const targetConcert = concerts.find(c => c.id === deleteTargetId);
                 try {
-                    // 1. 從 Firestore 刪除文字資料
                     await deleteDoc(doc(db, "concerts", deleteTargetId));
-                    
-                    // 2. 如果圖片是存放在 Firebase Storage 的網址，試著一起刪除它
-                    if (targetConcert && targetConcert.image && targetConcert.image.includes('firebasestorage')) {
-                        const fileRef = ref(storage, targetConcert.image);
-                        await deleteObject(fileRef).catch(e => console.log("Storage file clean skipped or not found."));
-                    }
                     showToast('已從雲端刪除該項目', 'success');
                 } catch (e) {
                     showToast('刪除失敗', 'error');
@@ -455,6 +495,7 @@
             document.getElementById('imagePreview').classList.add('hidden');
             document.getElementById('imagePlaceholder').classList.remove('hidden');
             document.getElementById('imageInput').value = '';
+            currentBase64Image = ""; 
 
             document.getElementById('formTitle').textContent = '新增演唱會紀錄';
             document.getElementById('formIcon').setAttribute('data-lucide', 'plus-circle');
@@ -463,7 +504,7 @@
             lucide.createIcons();
         }
 
-        // 排序與渲染 (16:9 橫向排版)
+        // 排序與渲染
         window.filterAndRender = function() {
             const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
             const sortBy = document.getElementById('sortSelect').value;
@@ -500,7 +541,6 @@
                         <div class="relative aspect-[16/9] md:w-2/5 bg-black/60 overflow-hidden shrink-0">
                             <img src="${posterSrc}" alt="${item.name} 海報" class="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500">
                         </div>
-                        
                         <div class="p-5 flex-1 flex flex-col justify-between">
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center">
@@ -509,7 +549,6 @@
                                 </div>
                                 <h3 class="font-bold text-base text-gray-100 group-hover:text-purple-300 transition pt-1 line-clamp-1">${item.name}</h3>
                             </div>
-                            
                             <div class="pt-4 border-t border-white/5 mt-4 flex justify-between items-center text-xs text-gray-400">
                                 <span class="flex items-center gap-1.5 truncate max-w-[75%]">
                                     <i data-lucide="map-pin" class="w-4 h-4 text-gray-500 shrink-0"></i>
@@ -531,7 +570,7 @@
             lucide.createIcons();
         }
 
-        // 更新頂部看板數字
+        // 更新看板
         function updateStatsContainers() {
             const count = concerts.length;
             const spent = concerts.reduce((sum, item) => sum + item.price, 0);
@@ -542,7 +581,7 @@
             document.getElementById('statVenues').innerHTML = `${venuesCount} <span class="text-sm text-gray-400 font-normal">個</span>`;
         }
 
-        // 點擊看板彈出排行榜視窗
+        // 統計排行彈出
         window.openStatsModal = function(type) {
             const modal = document.getElementById('statsModal');
             const title = document.getElementById('statsModalTitle');
@@ -554,12 +593,9 @@
             if (type === 'artist') {
                 title.textContent = '熱門參戰藝人排行';
                 icon.setAttribute('data-lucide', 'users');
-                
                 let counts = {};
                 concerts.forEach(c => { if(c.artist) counts[c.artist] = (counts[c.artist] || 0) + 1; });
-                
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-                
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 sorted.forEach(([artist, count], index) => {
                     listContainer.appendChild(createRankItemHTML(index, artist, `${count} 場`, 'text-purple-400'));
@@ -568,9 +604,7 @@
             else if (type === 'price') {
                 title.textContent = '門票花費最高排行';
                 icon.setAttribute('data-lucide', 'banknote');
-                
                 let sorted = [...concerts].sort((a, b) => b.price - a.price);
-                
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 sorted.forEach((item, index) => {
                     const desc = `[${item.artist}] ${item.venue}`;
@@ -580,12 +614,9 @@
             else if (type === 'venue') {
                 title.textContent = '解鎖場地造訪排行';
                 icon.setAttribute('data-lucide', 'map-pin');
-                
                 let counts = {};
                 concerts.forEach(c => { if(c.venue) counts[c.venue] = (counts[c.venue] || 0) + 1; });
-                
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-                
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 sorted.forEach(([venue, count], index) => {
                     listContainer.appendChild(createRankItemHTML(index, venue, `${count} 次`, 'text-emerald-400'));

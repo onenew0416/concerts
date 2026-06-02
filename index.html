@@ -230,7 +230,7 @@
             <div class="flex items-center justify-between border-b border-white/5 pb-3">
                 <div class="flex items-center gap-2 text-purple-400">
                     <i id="statsModalIcon" data-lucide="bar-chart-2" class="w-5 h-5"></i>
-                    <h3 id="statsModalTitle" class="text-base font-bold text-white">數據 analysis 排行</h3>
+                    <h3 id="statsModalTitle" class="text-base font-bold text-white">數據分析排行</h3>
                 </div>
                 <button onclick="closeStatsModal()" class="text-gray-400 hover:text-white transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
@@ -309,7 +309,7 @@
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
         }
 
-        // 核心智慧壓縮功能 (維持比例、自動控制在安全容量內)
+        // 核心智慧壓縮功能
         function compressImage(file, maxWidth = 1000, quality = 0.7) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -342,14 +342,14 @@
             });
         }
 
-        // 選擇圖片事件：加入非同步智慧縮放與壓縮
+        // 選擇圖片事件
         window.previewImage = async function(event) {
             const file = event.target.files[0];
             const preview = document.getElementById('imagePreview');
             const placeholder = document.getElementById('imagePlaceholder');
             
             if (file) {
-                if (file.size > 200 * 1024) { // 檔案大於 200KB 啟動本機壓縮
+                if (file.size > 200 * 1024) { 
                     console.log(`原始圖檔較大 (${(file.size/1024).toFixed(1)} KB)，啟動等比例壓縮...`);
                     try {
                         currentBase64Image = await compressImage(file, 1000, 0.7);
@@ -377,7 +377,7 @@
             }
         }
 
-        // 新增與更新處理 (完全脫離 Storage，改存安全體積的 Base64 字串)
+        // 新增與更新處理
         window.handleFormSubmit = async function(event) {
             event.preventDefault();
             
@@ -394,7 +394,6 @@
             submitBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> 雲端處理中...`;
 
             try {
-                // 如果有新壓縮的圖片就用新的，沒有就沿用舊的
                 let finalImageUrl = currentBase64Image ? currentBase64Image : existingImage;
 
                 const payload = { name, date, price, artist, venue, image: finalImageUrl };
@@ -430,7 +429,7 @@
             document.getElementById('artist').value = concert.artist;
             document.getElementById('venue').value = concert.venue;
             document.getElementById('existingImage').value = concert.image;
-            currentBase64Image = ""; // 清空暫存，避免污染
+            currentBase64Image = ""; 
 
             const preview = document.getElementById('imagePreview');
             const placeholder = document.getElementById('imagePlaceholder');
@@ -496,7 +495,7 @@
             lucide.createIcons();
         }
 
-        // 排序與渲染 (16:9 橫向排版)
+        // 排序與渲染 (🚀 修正 1：名稱太長會自動完整分行顯示)
         window.filterAndRender = function() {
             const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
             const sortBy = document.getElementById('sortSelect').value;
@@ -539,7 +538,7 @@
                                     <span class="text-[11px] font-mono tracking-wider text-purple-400 bg-purple-500/10 px-2.5 py-0.5 rounded-md">${item.date}</span>
                                     <span class="text-xs font-bold text-pink-400 font-mono bg-pink-500/5 px-2.5 py-0.5 rounded-md">NT$ ${item.price.toLocaleString()}</span>
                                 </div>
-                                <h3 class="font-bold text-base text-gray-100 group-hover:text-purple-300 transition pt-1 line-clamp-1">${item.name}</h3>
+                                <h3 class="font-bold text-base text-gray-100 group-hover:text-purple-300 transition pt-1 break-words whitespace-normal">${item.name}</h3>
                             </div>
                             <div class="pt-4 border-t border-white/5 mt-4 flex justify-between items-center text-xs text-gray-400">
                                 <span class="flex items-center gap-1.5 truncate max-w-[75%]">
@@ -573,7 +572,7 @@
             document.getElementById('statVenues').innerHTML = `${venuesCount} <span class="text-sm text-gray-400 font-normal">個</span>`;
         }
 
-        // 彈出排行榜視窗
+        // 彈出排行榜視窗 (🚀 修正 2：同分/同金額顯示同名次)
         window.openStatsModal = function(type) {
             const modal = document.getElementById('statsModal');
             const title = document.getElementById('statsModalTitle');
@@ -589,8 +588,15 @@
                 concerts.forEach(c => { if(c.artist) counts[c.artist] = (counts[c.artist] || 0) + 1; });
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
+                
+                let currentRank = 1;
+                let prevValue = null;
                 sorted.forEach(([artist, count], index) => {
-                    listContainer.appendChild(createRankItemHTML(index, artist, `${count} 場`, 'text-purple-400'));
+                    if (count !== prevValue) {
+                        currentRank = index + 1; // 當前項目與前一項數據不同時更新為真正的序號
+                        prevValue = count;
+                    }
+                    listContainer.appendChild(createRankItemHTML(currentRank - 1, artist, `${count} 場`, 'text-purple-400'));
                 });
             } 
             else if (type === 'price') {
@@ -598,9 +604,16 @@
                 icon.setAttribute('data-lucide', 'banknote');
                 let sorted = [...concerts].sort((a, b) => b.price - a.price);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
+                
+                let currentRank = 1;
+                let prevValue = null;
                 sorted.forEach((item, index) => {
+                    if (item.price !== prevValue) {
+                        currentRank = index + 1;
+                        prevValue = item.price;
+                    }
                     const desc = `[${item.artist}] ${item.venue}`;
-                    listContainer.appendChild(createRankItemHTML(index, item.name, `NT$ ${item.price.toLocaleString()}`, 'text-pink-400', desc));
+                    listContainer.appendChild(createRankItemHTML(currentRank - 1, item.name, `NT$ ${item.price.toLocaleString()}`, 'text-pink-400', desc));
                 });
             } 
             else if (type === 'venue') {
@@ -610,8 +623,15 @@
                 concerts.forEach(c => { if(c.venue) counts[c.venue] = (counts[c.venue] || 0) + 1; });
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
+                
+                let currentRank = 1;
+                let prevValue = null;
                 sorted.forEach(([venue, count], index) => {
-                    listContainer.appendChild(createRankItemHTML(index, venue, `${count} 次`, 'text-emerald-400'));
+                    if (count !== prevValue) {
+                        currentRank = index + 1;
+                        prevValue = count;
+                    }
+                    listContainer.appendChild(createRankItemHTML(currentRank - 1, venue, `${count} 次`, 'text-emerald-400'));
                 });
             }
 
@@ -619,21 +639,22 @@
             lucide.createIcons();
         }
 
-        function createRankItemHTML(index, title, value, valColorClass, subtitle = '') {
+        // 🚀 修正 1：排行榜容器移除了 truncate，改為 items-start 配合換行對齊
+        function createRankItemHTML(rankIndex, title, value, valColorClass, subtitle = '') {
             const medals = ['🥇', '🥈', '🥉'];
-            const medal = index < 3 ? `<span class="text-lg">${medals[index]}</span>` : `<span class="w-5 text-center text-xs font-mono text-gray-500">${index + 1}</span>`;
+            const medal = rankIndex < 3 ? `<span class="text-lg shrink-0">${medals[rankIndex]}</span>` : `<span class="w-5 text-center text-xs font-mono text-gray-500 shrink-0">${rankIndex + 1}</span>`;
             
             const div = document.createElement('div');
-            div.className = 'flex items-center justify-between p-3 bg-black/30 border border-white/5 rounded-xl';
+            div.className = 'flex items-start justify-between p-3 bg-black/30 border border-white/5 rounded-xl gap-3';
             div.innerHTML = `
-                <div class="flex items-center gap-3 truncate pr-2">
+                <div class="flex items-start gap-3 min-w-0 flex-1">
                     ${medal}
-                    <div class="truncate">
-                        <p class="text-xs font-bold text-gray-200 truncate">${title}</p>
-                        ${subtitle ? `<p class="text-[10px] text-gray-500 truncate mt-0.5">${subtitle}</p>` : ''}
+                    <div class="min-w-0 flex-1 break-words whitespace-normal">
+                        <p class="text-xs font-bold text-gray-200 break-words whitespace-normal">${title}</p>
+                        ${subtitle ? `<p class="text-[10px] text-gray-500 break-words whitespace-normal mt-0.5">${subtitle}</p>` : ''}
                     </div>
                 </div>
-                <span class="text-xs font-bold font-mono ${valColorClass} shrink-0">${value}</span>
+                <span class="text-xs font-bold font-mono ${valColorClass} shrink-0 mt-0.5">${value}</span>
             `;
             return div;
         }

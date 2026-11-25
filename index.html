@@ -59,6 +59,11 @@
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6">
         
+        <!-- 年份頁籤 -->
+        <div class="mb-6 -mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto pb-1">
+            <div id="yearTabs" class="flex gap-2 w-max min-w-full"></div>
+        </div>
+
         <!-- 統計數據看版 (可點選彈窗) -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <div onclick="openStatsModal('artist')" class="glass-panel p-5 rounded-2xl flex items-center justify-between cursor-pointer hover:border-purple-500/40 hover:bg-purple-500/5 transition group duration-300">
@@ -90,18 +95,61 @@
             </div>
         </div>
 
-        <!-- 雙欄布局 -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            <!-- 左欄：輸入表單 -->
-            <div class="lg:col-span-5">
-                <div class="glass-panel p-6 rounded-2xl sticky top-28 shadow-xl">
-                    <div class="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
-                        <i id="formIcon" data-lucide="plus-circle" class="w-5 h-5 text-purple-400"></i>
-                        <h2 id="formTitle" class="text-lg font-bold text-white">新增演唱會紀錄</h2>
-                    </div>
+        <!-- 工具列 -->
+        <div class="space-y-6">
+            <div class="glass-panel p-4 rounded-2xl flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+                <div class="relative w-full lg:w-72">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </span>
+                    <input type="text" id="searchInput" oninput="filterAndRender()" placeholder="搜尋名稱、藝人或場地..."
+                           class="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs text-white placeholder-gray-500 outline-none transition neon-border-glow">
+                </div>
+                <div class="flex gap-2 w-full lg:w-auto">
+                    <select id="sortSelect" onchange="filterAndRender()"
+                            class="flex-1 lg:flex-initial bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-300 outline-none transition focus:border-purple-500">
+                        <option value="date-desc">日期由新到舊</option>
+                        <option value="date-asc">日期由舊到新</option>
+                        <option value="price-desc">票價由高到低</option>
+                        <option value="price-asc">票價由低到高</option>
+                    </select>
+                    <button type="button" onclick="openConcertModal()" class="shrink-0 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-semibold px-4 py-2 rounded-xl transition shadow-lg shadow-purple-500/20 text-xs flex items-center justify-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>新增演唱會資料</span>
+                    </button>
+                </div>
+            </div>
 
-                    <form id="concertForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+            <div id="concertWall" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <!-- 16:9 橫向卡片列表 -->
+            </div>
+
+            <div id="emptyState" class="hidden glass-panel p-12 rounded-2xl text-center space-y-4">
+                <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto text-gray-500">
+                    <i data-lucide="disc" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h3 id="emptyTitle" class="text-base font-semibold text-gray-200">目前雲端沒有任何紀錄</h3>
+                    <p id="emptyDesc" class="text-xs text-gray-500 mt-1">點擊「新增演唱會資料」，資料會直接同步至 Firebase 資料庫！</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 新增 / 編輯 演唱會 Modal -->
+    <div id="concertModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="glass-panel rounded-2xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/5 px-6 py-4 sticky top-0 z-10 bg-[#161c26]">
+                <div class="flex items-center gap-2">
+                    <i id="formIcon" data-lucide="plus-circle" class="w-5 h-5 text-purple-400"></i>
+                    <h2 id="formTitle" class="text-lg font-bold text-white">新增演唱會紀錄</h2>
+                </div>
+                <button type="button" onclick="closeConcertModal()" class="text-gray-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="concertForm" onsubmit="handleFormSubmit(event)" class="space-y-4 pt-1">
                         <input type="hidden" id="editId">
                         <input type="hidden" id="existingImage">
                         
@@ -194,54 +242,17 @@
                             <button type="submit" id="submitBtn" class="flex-1 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-semibold py-2.5 rounded-xl transition shadow-lg shadow-purple-500/20 text-sm flex items-center justify-center gap-2">
                                 <span>儲存紀錄</span>
                             </button>
-                            <button type="button" id="cancelBtn" onclick="resetForm()" class="hidden px-4 bg-white/10 hover:bg-white/15 text-gray-300 font-semibold py-2.5 rounded-xl transition text-sm">
+                            <button type="button" id="cancelBtn" onclick="closeConcertModal()" class="px-5 bg-white/10 hover:bg-white/15 text-gray-300 font-semibold py-2.5 rounded-xl transition text-sm">
                                 取消
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <!-- 右欄：過濾器與列表 -->
-            <div class="lg:col-span-7 space-y-6">
-                <div class="glass-panel p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-center justify-between">
-                    <div class="relative w-full sm:w-64">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                            <i data-lucide="search" class="w-4 h-4"></i>
-                        </span>
-                        <input type="text" id="searchInput" oninput="filterAndRender()" placeholder="搜尋名稱、藝人或場地..." 
-                               class="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs text-white placeholder-gray-500 outline-none transition neon-border-glow">
-                    </div>
-                    <div class="flex gap-2 w-full sm:w-auto">
-                        <select id="sortSelect" onchange="filterAndRender()" 
-                                class="flex-1 sm:flex-initial bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-300 outline-none transition focus:border-purple-500">
-                            <option value="date-desc">日期由新到舊</option>
-                            <option value="date-asc">日期由舊到新</option>
-                            <option value="price-desc">票價由高到低</option>
-                            <option value="price-asc">票價由低到高</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div id="concertWall" class="grid grid-cols-1 gap-4">
-                    <!-- 16:9 橫向卡片列表 -->
-                </div>
-
-                <div id="emptyState" class="hidden glass-panel p-12 rounded-2xl text-center space-y-4">
-                    <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto text-gray-500">
-                        <i data-lucide="disc" class="w-8 h-8"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-semibold text-gray-200">目前雲端沒有任何紀錄</h3>
-                        <p class="text-xs text-gray-500 mt-1">在左側填表，資料會直接同步至 Firebase 資料庫！</p>
-                    </div>
-                </div>
             </div>
         </div>
-    </main>
+    </div>
 
     <!-- 🚀 新增：選擇與輸入歷史資料的智慧型 Modal -->
-    <div id="selectionModal" onclick="closeSelectionModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+    <div id="selectionModal" onclick="closeSelectionModal()" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
         <div class="glass-panel p-6 rounded-2xl max-w-md w-full mx-4 space-y-4" onclick="event.stopPropagation()">
             <div class="flex items-center justify-between border-b border-white/5 pb-3">
                 <div class="flex items-center gap-2 text-purple-400">
@@ -335,6 +346,7 @@
 
         // 全域變數
         let concerts = [];
+        let activeTab = 'ALL'; // 'ALL' 或年份字串，例如 '2026'
         let deleteTargetId = null;
         let currentBase64Image = ""; 
         let currentSelectionType = ""; // 存放目前點選的是 'artist' 還是 'venue'
@@ -349,6 +361,40 @@
         }, (error) => {
             showToast('資料同步失敗，請檢查 Firebase 配置與規則！', 'error');
         });
+
+        // ===== 年份頁籤 =====
+        function getYear(c) { return (c.date || '').slice(0, 4); }
+
+        function getTabData() {
+            return activeTab === 'ALL' ? concerts : concerts.filter(c => getYear(c) === activeTab);
+        }
+
+        function renderTabs() {
+            const years = [...new Set(concerts.map(getYear).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+            if (activeTab !== 'ALL' && !years.includes(activeTab)) activeTab = 'ALL';
+
+            const bar = document.getElementById('yearTabs');
+            bar.innerHTML = '';
+            const tabs = [{ key: 'ALL', label: 'ALL', count: concerts.length }]
+                .concat(years.map(y => ({ key: y, label: y, count: concerts.filter(c => getYear(c) === y).length })));
+
+            tabs.forEach(t => {
+                const active = t.key === activeTab;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ' + (active
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/20'
+                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200');
+                btn.innerHTML = `<span>${t.label}</span><span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md ${active ? 'bg-white/20 text-white' : 'bg-black/30 text-gray-500'}">${t.count}</span>`;
+                btn.onclick = () => switchTab(t.key);
+                bar.appendChild(btn);
+            });
+        }
+
+        window.switchTab = function(key) {
+            activeTab = key;
+            filterAndRender();
+        }
 
         // 16:9 預設幾何海報生成
         function generateDefaultPoster(name, date) {
@@ -532,49 +578,63 @@
                     await addDoc(collection(db, "concerts"), payload);
                     showToast('已成功儲存至雲端資料庫', 'success');
                 }
-                resetForm();
+                // 若目前在其他年份頁籤，切到剛儲存的那一年，才看得到這筆資料
+                const savedYear = date.slice(0, 4);
+                if (activeTab !== 'ALL' && activeTab !== savedYear) activeTab = savedYear;
+                closeConcertModal();
+                filterAndRender();
             } catch (error) {
                 console.error(error);
                 showToast('處理失敗，請檢查雲端規則設定！', 'error');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = `儲存紀錄`;
+                submitBtn.innerHTML = editId ? '更新雲端紀錄' : '儲存紀錄';
             }
         }
 
-        // 編輯載入
-        window.startEdit = function(id) {
-            const concert = concerts.find(c => c.id === id);
-            if (!concert) return;
+        // 開啟新增 / 編輯彈窗 (傳入 id 為編輯，不傳為新增)
+        window.openConcertModal = function(id) {
+            resetForm();
 
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (id) {
+                const concert = concerts.find(c => c.id === id);
+                if (!concert) return;
 
-            document.getElementById('editId').value = concert.id;
-            document.getElementById('name').value = concert.name;
-            document.getElementById('date').value = concert.date;
-            document.getElementById('price').value = concert.price;
-            document.getElementById('artist').value = concert.artist;
-            document.getElementById('venue').value = concert.venue;
-            document.getElementById('existingImage').value = concert.image;
-            currentBase64Image = ""; 
+                document.getElementById('editId').value = concert.id;
+                document.getElementById('name').value = concert.name;
+                document.getElementById('date').value = concert.date;
+                document.getElementById('price').value = concert.price;
+                document.getElementById('artist').value = concert.artist;
+                document.getElementById('venue').value = concert.venue;
+                document.getElementById('existingImage').value = concert.image || '';
 
-            const preview = document.getElementById('imagePreview');
-            const placeholder = document.getElementById('imagePlaceholder');
-            
-            if (concert.image) {
-                preview.src = concert.image;
-                preview.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-            } else {
-                preview.classList.add('hidden');
-                placeholder.classList.remove('hidden');
+                if (concert.image) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = concert.image;
+                    preview.classList.remove('hidden');
+                    document.getElementById('imagePlaceholder').classList.add('hidden');
+                }
+
+                document.getElementById('formTitle').textContent = '編輯紀錄資訊';
+                document.getElementById('formIcon').setAttribute('data-lucide', 'edit-3');
+                document.getElementById('submitBtn').textContent = '更新雲端紀錄';
+            } else if (activeTab !== 'ALL') {
+                // 在年份頁籤下新增時，預設帶入該年份 1/1 方便選日期
+                document.getElementById('date').value = `${activeTab}-01-01`;
             }
 
-            document.getElementById('formTitle').textContent = '編輯紀錄資訊';
-            document.getElementById('formIcon').setAttribute('data-lucide', 'edit-3');
-            document.getElementById('submitBtn').textContent = '更新雲端紀錄';
-            document.getElementById('cancelBtn').classList.remove('hidden');
+            document.getElementById('concertModal').classList.remove('opacity-0', 'pointer-events-none');
             lucide.createIcons();
+        }
+
+        window.closeConcertModal = function() {
+            document.getElementById('concertModal').classList.add('opacity-0', 'pointer-events-none');
+            closeSelectionModal();
+        }
+
+        // 編輯 (改為彈窗)
+        window.startEdit = function(id) {
+            openConcertModal(id);
         }
 
         // 刪除處理
@@ -620,16 +680,16 @@
             document.getElementById('formTitle').textContent = '新增演唱會紀錄';
             document.getElementById('formIcon').setAttribute('data-lucide', 'plus-circle');
             document.getElementById('submitBtn').textContent = '儲存紀錄';
-            document.getElementById('cancelBtn').classList.add('hidden');
             lucide.createIcons();
         }
 
         // 排序與渲染 (維持名稱太長自動換行顯示)
         window.filterAndRender = function() {
+            renderTabs();
             const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
             const sortBy = document.getElementById('sortSelect').value;
 
-            let filtered = concerts.filter(c => {
+            let filtered = getTabData().filter(c => {
                 return c.name.toLowerCase().includes(searchQuery) || 
                        c.artist.toLowerCase().includes(searchQuery) || 
                        c.venue.toLowerCase().includes(searchQuery);
@@ -648,6 +708,11 @@
             wall.innerHTML = '';
 
             if (filtered.length === 0) {
+                const noData = concerts.length === 0;
+                document.getElementById('emptyTitle').textContent = noData ? '目前雲端沒有任何紀錄' : '沒有符合的演唱會';
+                document.getElementById('emptyDesc').textContent = noData
+                    ? '點擊「新增演唱會資料」，資料會直接同步至 Firebase 資料庫！'
+                    : '換個頁籤或調整搜尋關鍵字試試看。';
                 emptyState.classList.remove('hidden');
             } else {
                 emptyState.classList.add('hidden');
@@ -692,9 +757,10 @@
 
         // 更新頂部看板數字
         function updateStatsContainers() {
-            const count = concerts.length;
-            const spent = concerts.reduce((sum, item) => sum + item.price, 0);
-            const venuesCount = new Set(concerts.map(c => c.venue.trim().toLowerCase())).size;
+            const tabData = getTabData();
+            const count = tabData.length;
+            const spent = tabData.reduce((sum, item) => sum + item.price, 0);
+            const venuesCount = new Set(tabData.map(c => c.venue.trim().toLowerCase())).size;
 
             document.getElementById('statCount').innerHTML = `${count} <span class="text-sm text-gray-400 font-normal">場</span>`;
             document.getElementById('statSpent').textContent = `NT$ ${spent.toLocaleString()}`;
@@ -703,6 +769,7 @@
 
         // 彈出排行榜視窗 (維持同分同名次並列排行演算法)
         window.openStatsModal = function(type) {
+            const tabData = getTabData();
             const modal = document.getElementById('statsModal');
             const title = document.getElementById('statsModalTitle');
             const icon = document.getElementById('statsModalIcon');
@@ -714,7 +781,7 @@
                 title.textContent = '熱門參戰藝人排行';
                 icon.setAttribute('data-lucide', 'users');
                 let counts = {};
-                concerts.forEach(c => { if(c.artist) counts[c.artist] = (counts[c.artist] || 0) + 1; });
+                tabData.forEach(c => { if(c.artist) counts[c.artist] = (counts[c.artist] || 0) + 1; });
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 
@@ -731,7 +798,7 @@
             else if (type === 'price') {
                 title.textContent = '門票花費最高排行';
                 icon.setAttribute('data-lucide', 'banknote');
-                let sorted = [...concerts].sort((a, b) => b.price - a.price);
+                let sorted = [...tabData].sort((a, b) => b.price - a.price);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 
                 let currentRank = 1;
@@ -749,7 +816,7 @@
                 title.textContent = '解鎖場地造訪排行';
                 icon.setAttribute('data-lucide', 'map-pin');
                 let counts = {};
-                concerts.forEach(c => { if(c.venue) counts[c.venue] = (counts[c.venue] || 0) + 1; });
+                tabData.forEach(c => { if(c.venue) counts[c.venue] = (counts[c.venue] || 0) + 1; });
                 let sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
                 if(sorted.length === 0) listContainer.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">暫無數據</p>`;
                 
@@ -764,6 +831,7 @@
                 });
             }
 
+            title.textContent += ' (' + (activeTab === 'ALL' ? '全部' : activeTab + ' 年') + ')';
             modal.classList.remove('opacity-0', 'pointer-events-none');
             lucide.createIcons();
         }
@@ -790,6 +858,16 @@
         window.closeStatsModal = function() {
             document.getElementById('statsModal').classList.add('opacity-0', 'pointer-events-none');
         }
+
+        // Esc 依序關閉最上層的彈窗
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const isOpen = (id) => !document.getElementById(id).classList.contains('pointer-events-none');
+            if (isOpen('selectionModal')) closeSelectionModal();
+            else if (isOpen('deleteModal')) closeDeleteModal();
+            else if (isOpen('statsModal')) closeStatsModal();
+            else if (isOpen('concertModal')) closeConcertModal();
+        });
 
         // 訊息通知
         function showToast(message, type = 'success') {
